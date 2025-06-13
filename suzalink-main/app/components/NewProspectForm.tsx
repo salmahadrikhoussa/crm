@@ -1,7 +1,6 @@
-// components/NewProspectForm.tsx
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, ChangeEvent } from "react";
 
 export interface ProspectInput {
   name: string;
@@ -27,31 +26,55 @@ export default function NewProspectForm({ onSuccess, onClose }: NewProspectFormP
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const res = await fetch("/api/prospects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    try {
+      const res = await fetch("/api/prospects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
-    if (!res.ok) {
-      const { error: msg } = await res.json();
-      setError(msg || "Failed to create prospect");
+      if (!res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const errorData = await res.json();
+          setError(errorData.error || "Failed to create prospect");
+        } else {
+          setError(`HTTP Error: ${res.status} ${res.statusText}`);
+        }
+        setLoading(false);
+        return;
+      }
+
+      const responseText = await res.text();
+      let created;
+      if (responseText) {
+        try {
+          created = JSON.parse(responseText);
+        } catch (parseError) {
+          setError("Invalid response from server");
+          setLoading(false);
+          return;
+        }
+      } else {
+        created = { ...form, id: Date.now().toString() };
+      }
+
+      onSuccess(created);
+      onClose();
+    } catch (networkError) {
+      setError("Network error. Please try again.");
       setLoading(false);
-      return;
     }
-
-    const created = await res.json();
-    onSuccess(created);
-    onClose();
   };
 
   return (
@@ -72,7 +95,7 @@ export default function NewProspectForm({ onSuccess, onClose }: NewProspectFormP
               name={name}
               type={type}
               required
-              value={(form as any)[name]}
+              value={form[name as keyof ProspectInput]}
               onChange={handleChange}
               disabled={loading}
               className="mt-1 block w-full border border-gray-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500"

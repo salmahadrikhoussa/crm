@@ -1,35 +1,61 @@
-// lib/auth.ts
-import { sign, verify as jwtVerify, JwtPayload } from "jsonwebtoken";
+// lib/auth.ts   – NODE.JS RUNTIME ONLY (API routes, server components)
+import clientPromise from './mongodb';
+import { LoginSchema } from './schemas';
+import { signJwt, verifyJwt } from './jwt';
+import bcrypt from 'bcrypt';
 
-const JWT_SECRET = process.env.JWT_SECRET!;
-if (!JWT_SECRET) throw new Error("Missing JWT_SECRET");
+export { verifyJwt }; // re-export so old imports keep working
 
-// Only JWT code here—safe for Edge
-export function verifyJwt(token: string): JwtPayload | null {
-  try {
-    return jwtVerify(token, JWT_SECRET) as JwtPayload;
-  } catch {
-    return null;
-  }
-}
-
-// Dynamic import of db so Edge bundles don’t pull in fs/path
+/**
+ * Verify user in DB, return user object with signToken() helper
+ */
 export async function verifyUser(email: string, password: string) {
-  const { readDb } = await import("./db");
-  const db = await readDb();
+  try {
+    console.log("Attempting to verify user:", email);
 
-  const users = Array.isArray(db.users) ? db.users : [];
-  const record = users.find((u: any) => u.email === email);
-  if (!record || record.password !== password) {
-    console.log(`Auth failed for ${email}`);
+    // Validate input
+    const { email: e, password: p } = LoginSchema.parse({ email, password });
+    console.log("Parsed email:", e);
+
+    // Connect to DB and find user
+    const client = await clientPromise;
+    const db = client.db('suzali_crm');
+    const users = db.collection('users');
+
+    const user = await users.findOne({ email: e });
+    console.log("User found:", user ? "YES" : "NO");
+
+    if (!user) {
+      console.log(`No user found for ${email}`);
+      return null;
+    }
+
+    // Secure password check with bcrypt
+    const passwordMatch = await bcrypt.compare(p, user.password);
+    console.log("Password match:", passwordMatch);
+
+    if (!passwordMatch) {
+      console.log(`Password mismatch for ${email}`);
+      return null;
+    }
+
+    console.log(`Auth successful for ${email}`);
+    return {
+      id: user._id.toString(),
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      /** Async helper for issuing JWTs */
+      signToken: async () =>
+        await signJwt({
+          sub: user._id.toString(),
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        }),
+    };
+  } catch (err) {
+    console.error('Database connection error:', err);
     return null;
   }
-
-  return {
-    id: record.id,
-    email: record.email,
-    role: record.role,
-    signToken: () =>
-      sign({ sub: record.id, email: record.email, role: record.role }, JWT_SECRET, { expiresIn: "1d" }),
-  };
 }

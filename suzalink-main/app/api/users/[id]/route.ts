@@ -1,81 +1,55 @@
-// app/api/users/[id]/route.ts
-export const runtime = "nodejs";
-
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
+import bcrypt from "bcrypt";
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const client = await clientPromise;
-  const col = client.db().collection("users");
-  let doc;
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    doc = await col.findOne({ _id: new ObjectId(params.id) });
-  } catch {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const client = await clientPromise;
+    const db = client.db("suzali_crm");
+    const userData = await db.collection("users").findOne({ _id: new ObjectId(params.id) });
+
+    if (!userData) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const { _id, name, email, role, avatar } = userData;
+    return NextResponse.json({ id: _id.toString(), name, email, role, avatar: avatar || null });
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-  if (!doc) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  return NextResponse.json({
-    id: doc._id.toHexString(),
-    name: doc.name,
-    email: doc.email,
-    role: doc.role,
-    avatar: doc.avatar,
-  });
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const updates = await req.json();
-  const client = await clientPromise;
-  const col = client.db().collection("users");
-
-  let value;
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    ({ value } = await col.findOneAndUpdate(
-      { _id: new ObjectId(params.id) },
-      { $set: updates },
-      { returnDocument: "after" }
-    ));
-  } catch {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+    const updates = await req.json();
 
-  if (!value) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+    if (updates.password) {
+      updates.password = await bcrypt.hash(updates.password, 10);
+    }
 
-  return NextResponse.json({
-    id: value._id.toHexString(),
-    name: value.name,
-    email: value.email,
-    role: value.role,
-    avatar: value.avatar,
-  });
+    const client = await clientPromise;
+    const db = client.db("suzali_crm");
+    await db.collection("users").updateOne({ _id: new ObjectId(params.id) }, { $set: updates });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Error updating user:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const client = await clientPromise;
-  const col = client.db().collection("users");
-  let result;
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    result = await col.deleteOne({ _id: new ObjectId(params.id) });
-  } catch {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const client = await clientPromise;
+    const db = client.db("suzali_crm");
+    await db.collection("users").deleteOne({ _id: new ObjectId(params.id) });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-  if (result.deletedCount === 0) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  return NextResponse.json({ success: true });
 }

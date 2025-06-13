@@ -1,84 +1,47 @@
-// app/api/clients/[id]/route.ts
-export const runtime = "nodejs";
-
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const client = await clientPromise;
-  const col = client.db().collection("clients");
-  let doc;
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    doc = await col.findOne({ _id: new ObjectId(params.id) });
-  } catch {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const client = await clientPromise;
+    const db = client.db("suzali_crm");
+    const clientData = await db.collection("clients").findOne({ _id: new ObjectId(params.id) });
+
+    if (!clientData) {
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(clientData);
+  } catch (error) {
+    console.error("Error fetching client:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-  if (!doc) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  return NextResponse.json({
-    id: doc._id.toHexString(),
-    name: doc.name,
-    type: doc.type,
-    contactInfo: doc.contactInfo,
-    portalAccess: doc.portalAccess,
-    assignedBizDev: doc.assignedBizDev,
-  });
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const updates = await req.json();
-  const client = await clientPromise;
-  const col = client.db().collection("clients");
-
-  let result;
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    result = await col.findOneAndUpdate(
-      { _id: new ObjectId(params.id) },
-      { $set: updates },
-      { returnDocument: "after" }
-    );
-  } catch {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+    const updates = await req.json();
+    const client = await clientPromise;
+    const db = client.db("suzali_crm");
+    await db.collection("clients").updateOne({ _id: new ObjectId(params.id) }, { $set: updates });
 
-  const value = result?.value;
-  if (!value) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Error updating client:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  return NextResponse.json({
-    id: value._id.toHexString(),
-    name: value.name,
-    type: value.type,
-    contactInfo: value.contactInfo,
-    portalAccess: value.portalAccess,
-    assignedBizDev: value.assignedBizDev,
-  });
 }
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const client = await clientPromise;
-  const col = client.db().collection("clients");
-  let result;
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    result = await col.deleteOne({ _id: new ObjectId(params.id) });
-  } catch {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const client = await clientPromise;
+    const db = client.db("suzali_crm");
+    await db.collection("clients").deleteOne({ _id: new ObjectId(params.id) });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Error deleting client:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-  if (result.deletedCount === 0) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  return NextResponse.json({ success: true });
 }

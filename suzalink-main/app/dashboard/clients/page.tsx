@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import NewClientForm, { ClientInput } from "../../components/NewClientForm";
 
-
 interface Client {
   id: string;
   name: string;
@@ -18,8 +17,6 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
 
-
-
   // filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
@@ -28,7 +25,18 @@ export default function ClientsPage() {
   useEffect(() => {
     fetch("/api/clients")
       .then((res) => res.json())
-      .then((data: Client[]) => setClients(data))
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setClients(data);
+        } else {
+          console.error("Unexpected data format:", data);
+          setClients([]);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch clients:", err);
+        setClients([]);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -44,12 +52,8 @@ export default function ClientsPage() {
 
   // apply filters
   const displayed = clients
-    .filter((c) =>
-      c.name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .filter((c) =>
-      typeFilter === "All" ? true : c.type === typeFilter
-    )
+    .filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    .filter((c) => (typeFilter === "All" ? true : c.type === typeFilter))
     .filter((c) =>
       accessFilter === "All"
         ? true
@@ -119,7 +123,13 @@ export default function ClientsPage() {
         <table className="min-w-full bg-white rounded-lg shadow">
           <thead>
             <tr className="bg-gray-100 text-left">
-              {["Name", "Type", "Contact Info", "Portal Access", "Assigned BizDev"].map((h) => (
+              {[
+                "Name",
+                "Type",
+                "Contact Info",
+                "Portal Access",
+                "Assigned BizDev",
+              ].map((h) => (
                 <th key={h} className="px-4 py-2">
                   {h}
                 </th>
@@ -132,7 +142,9 @@ export default function ClientsPage() {
                 <td className="px-4 py-2">{c.name}</td>
                 <td className="px-4 py-2">{c.type}</td>
                 <td className="px-4 py-2">{c.contactInfo}</td>
-                <td className="px-4 py-2">{c.portalAccess ? "Enabled" : "Disabled"}</td>
+                <td className="px-4 py-2">
+                  {c.portalAccess ? "Enabled" : "Disabled"}
+                </td>
                 <td className="px-4 py-2">{c.assignedBizDev}</td>
               </tr>
             ))}
@@ -140,7 +152,12 @@ export default function ClientsPage() {
         </table>
       </div>
 
-      {showForm && <NewClientForm onSuccess={handleNew} onClose={() => setShowForm(false)} />}
+      {showForm && (
+        <NewClientForm
+          onSuccess={handleNew}
+          onClose={() => setShowForm(false)}
+        />
+      )}
     </div>
   );
 }

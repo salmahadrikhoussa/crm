@@ -1,37 +1,98 @@
-// app/api/clients/route.ts
-export const runtime = "nodejs";
-
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { verifyJwt } from "@/lib/jwt";
 import clientPromise from "@/lib/mongodb";
-import { ClientSchema } from "../../../lib/schemas";
-import { ObjectId } from "mongodb";
 
-export async function GET() {
-  const client = await clientPromise;
-  const col = client.db().collection("clients");
-  const docs = await col.find().toArray();
-  const clients = docs.map(doc => ({
-    id: (doc._id as ObjectId).toHexString(),
-    name: doc.name,
-    type: doc.type,
-    contactInfo: doc.contactInfo,
-    portalAccess: doc.portalAccess,
-    assignedBizDev: doc.assignedBizDev,
-  }));
-  return NextResponse.json(clients);
+export async function GET(req: NextRequest) {
+  const token = req.cookies.get("token")?.value;
+
+  if (!token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const payload = await verifyJwt(token);
+
+  if (!payload) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { role } = payload;
+
+  if (role !== "admin" && role !== "bizdev") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
+    const client = await clientPromise;
+    const db = client.db("suzali_crm");
+
+    const clients = await db.collection("clients").find().toArray();
+
+    // Map _id to id as string for frontend
+    const mappedClients = clients.map((c) => ({
+      id: c._id.toString(),
+      name: c.name,
+      type: c.type,
+      contactInfo: c.contactInfo,
+      portalAccess: c.portalAccess,
+      assignedBizDev: c.assignedBizDev,
+    }));
+
+    return NextResponse.json(mappedClients);
+  } catch (error) {
+    console.error("Error fetching clients:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
-  let input;
-  try {
-    input = ClientSchema.parse(await req.json());
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 422 });
+  const token = req.cookies.get("token")?.value;
+
+  if (!token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const client = await clientPromise;
-  const col = client.db().collection("clients");
-  const res = await col.insertOne(input);
-  const created = { id: res.insertedId.toHexString(), ...input };
-  return NextResponse.json(created, { status: 201 });
+
+  const payload = await verifyJwt(token);
+
+  if (!payload) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { role } = payload;
+
+  if (role !== "admin" && role !== "bizdev") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
+    const client = await clientPromise;
+    const db = client.db("suzali_crm");
+
+    const data = await req.json();
+
+    const newClient = {
+      ...data,
+    };
+
+    const result = await db.collection("clients").insertOne(newClient);
+
+    const createdClient = await db.collection("clients").findOne({
+      _id: result.insertedId,
+    });
+
+    // Map _id to id as string for frontend
+    const mappedClient = {
+      id: createdClient?._id.toString(),
+      name: createdClient?.name,
+      type: createdClient?.type,
+      contactInfo: createdClient?.contactInfo,
+      portalAccess: createdClient?.portalAccess,
+      assignedBizDev: createdClient?.assignedBizDev,
+    };
+
+    return NextResponse.json(mappedClient);
+  } catch (error) {
+    console.error("Error creating client:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

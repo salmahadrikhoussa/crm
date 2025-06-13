@@ -1,12 +1,9 @@
-// app/dashboard/prospects/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import NewProspectForm, { ProspectInput } from "../../components/NewProspectForm";
 import ProspectImportWizard from "../../components/ProspectImportWizard";
 import Link from "next/link";
-
-
 
 interface Prospect {
   id: string;
@@ -18,6 +15,8 @@ interface Prospect {
 }
 
 export default function ProspectsPage() {
+  console.log("ProspectsPage is rendering");
+
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -27,7 +26,7 @@ export default function ProspectsPage() {
   const [page, setPage] = useState(1);
   const perPage = 10;
 
-  // track selected IDs - Fixed: Added safety check for prospects array
+  // track selected IDs
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const allIdsOnPage = (prospects || [])
     .filter((p) =>
@@ -42,18 +41,13 @@ export default function ProspectsPage() {
     fetch("/api/prospects")
       .then((res) => res.json())
       .then((data: Prospect[]) => {
-        // Fixed: Added safety check to ensure data is an array
         if (Array.isArray(data)) {
           setProspects(data);
         } else {
-          console.error("API returned non-array data:", data);
           setProspects([]);
         }
       })
-      .catch((error) => {
-        console.error("Error fetching prospects:", error);
-        setProspects([]);
-      })
+      .catch(() => setProspects([]))
       .finally(() => setLoading(false));
   }, []);
 
@@ -77,7 +71,7 @@ export default function ProspectsPage() {
 
   if (loading) return <p>Loading prospects…</p>;
 
-  // filtering - Fixed: Added safety check
+  // filtering
   const filtered = (prospects || [])
     .filter((p) =>
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -87,10 +81,9 @@ export default function ProspectsPage() {
 
   // pagination
   const total = filtered.length;
-  const pages = Math.ceil(total / perPage);
+  const pages = Math.max(1, Math.ceil(total / perPage));
   const paged = filtered.slice((page - 1) * perPage, page * perPage);
 
-  // toggle a single checkbox
   function toggleSelect(id: string) {
     setSelected((s) => {
       const next = new Set(s);
@@ -99,14 +92,12 @@ export default function ProspectsPage() {
     });
   }
 
-  // select or unselect all on current page
   function toggleSelectAll() {
     setSelected((s) => {
       const next = new Set(s);
       const allOnPage = allIdsOnPage;
       const allSelected = allOnPage.every((id) => next.has(id));
       if (allSelected) {
-        // unselect all
         allOnPage.forEach((id) => next.delete(id));
       } else {
         allOnPage.forEach((id) => next.add(id));
@@ -115,19 +106,19 @@ export default function ProspectsPage() {
     });
   }
 
-  // delete all selected
   async function deleteSelected() {
     if (!confirm(`Delete ${selected.size} selected prospect(s)?`)) return;
-    // call DELETE for each
     await Promise.all(
       Array.from(selected).map((id) =>
         fetch(`/api/prospects/${id}`, { method: "DELETE" })
       )
     );
-    // update UI
     setProspects((prev) => (prev || []).filter((p) => !selected.has(p.id)));
     setSelected(new Set());
   }
+
+  // AJOUT DU LOG ICI
+  console.log({ prospects, loading, filtered, paged });
 
   return (
     <div>
@@ -207,27 +198,35 @@ export default function ProspectsPage() {
             </tr>
           </thead>
           <tbody>
-            {paged.map((p) => (
-              <tr key={p.id} className="border-t hover:bg-gray-50">
-                <td className="px-4 py-2">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(p.id)}
-                    onChange={() => toggleSelect(p.id)}
-                  />
-                </td>
-                <td className="px-4 py-2">{p.name}</td>
-                <td className="px-4 py-2">{p.email}</td>
-                <td className="px-4 py-2">{p.phone}</td>
-                <td className="px-4 py-2">{p.status}</td>
-                <td className="px-4 py-2">{p.assignedTo}</td>
-                <td className="px-4 py-2">
-                  <Link href={`/dashboard/prospects/${p.id}`} className="text-blue-600 hover:underline">
-                    Details
-                  </Link>
+            {paged.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center py-4">
+                  Aucun prospect trouvé.
                 </td>
               </tr>
-            ))}
+            ) : (
+              paged.map((p) => (
+                <tr key={p.id} className="border-t hover:bg-gray-50">
+                  <td className="px-4 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(p.id)}
+                      onChange={() => toggleSelect(p.id)}
+                    />
+                  </td>
+                  <td className="px-4 py-2">{p.name}</td>
+                  <td className="px-4 py-2">{p.email}</td>
+                  <td className="px-4 py-2">{p.phone}</td>
+                  <td className="px-4 py-2">{p.status}</td>
+                  <td className="px-4 py-2">{p.assignedTo}</td>
+                  <td className="px-4 py-2">
+                    <Link href={`/dashboard/prospects/${p.id}`} className="text-blue-600 hover:underline">
+                      Details
+                    </Link>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

@@ -1,4 +1,3 @@
-// app/dashboard/projects/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -59,7 +58,6 @@ export default function ProjectsPage() {
             {projects.map((p) => (
               <tr key={p.id} className="border-t hover:bg-gray-50">
                 <td className="px-4 py-2">
-                  {/* Option A: Make the name itself clickable */}
                   <Link
                     href={`/dashboard/projects/${p.id}`}
                     className="text-blue-600 hover:underline"
@@ -73,7 +71,6 @@ export default function ProjectsPage() {
                 <td className="px-4 py-2">{new Date(p.endDate).toLocaleDateString()}</td>
                 <td className="px-4 py-2">{p.status}</td>
                 <td className="px-4 py-2">
-                  {/* Option B: Explicit Details button */}
                   <Link
                     href={`/dashboard/projects/${p.id}`}
                     className="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300 text-sm"

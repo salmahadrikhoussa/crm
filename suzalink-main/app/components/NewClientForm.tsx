@@ -40,19 +40,28 @@ export default function NewClientForm({ onSuccess, onClose }: NewClientFormProps
     setError(null);
     setLoading(true);
 
-    const res = await fetch("/api/clients", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    if (!res.ok) {
-      const { error: msg } = await res.json();
-      setError(msg || "Failed to create client");
+    try {
+      const res = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+
+      if (!res.ok) {
+        setError(data.error || "Failed to create client");
+        setLoading(false);
+        return;
+      }
+
+      onSuccess(data);
       setLoading(false);
-      return;
+    } catch (err) {
+      setError("Unexpected error");
+      setLoading(false);
     }
-    const created = await res.json();
-    onSuccess(created);
   };
 
   return (

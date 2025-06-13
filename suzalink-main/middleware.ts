@@ -1,27 +1,69 @@
-// middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifyJwt } from "@/lib/auth";
+import { verifyJwt } from "@/lib/jwt";
 
-export function middleware(req: NextRequest) {
+interface JwtPayload {
+  role: string;
+}
+
+export async function middleware(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
-  const { pathname } = req.nextUrl;
 
-  // Only run this middleware on /dashboard and its sub-paths
-  if (pathname.startsWith("/dashboard")) {
-    // If there's no token or it's invalid, redirect to login
-    if (!token || !verifyJwt(token) === null) {
-      const loginUrl = req.nextUrl.clone();
-      loginUrl.pathname = "/login";
-      return NextResponse.redirect(loginUrl);
-    }
+  if (!token) {
+    return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  // Otherwise let the request through
+  const payload = (await verifyJwt(token)) as JwtPayload | null;
+
+  if (!payload) {
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
+
+  const { role } = payload;
+  const pathname = req.nextUrl.pathname;
+
+  const roleAccessMap: Record<string, string[]> = {
+    admin: [
+      "/dashboard",
+      "/dashboard/clients",
+      "/dashboard/prospects",
+      "/dashboard/tasks",
+      "/dashboard/projects",
+      "/dashboard/users",
+    ],
+    bizdev: [
+      "/dashboard",
+      "/dashboard/clients",
+      "/dashboard/prospects",
+      "/dashboard/tasks",
+      "/dashboard/projects",
+    ],
+    developer: [
+      "/dashboard",
+      "/dashboard/projects",
+      "/dashboard/tasks",
+      "/dashboard/prospects",
+    ],
+  };
+
+  const allowedPaths = roleAccessMap[role] || [];
+
+  const hasAccess = allowedPaths.some((path: string) => pathname.startsWith(path));
+
+  if (!hasAccess) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
   return NextResponse.next();
 }
 
-// Apply middleware only to /dashboard routes
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: [
+    "/dashboard/:path*",
+    "/clients/:path*",
+    "/prospects/:path*",
+    "/tasks/:path*",
+    "/projects/:path*",
+    "/users/:path*",
+  ],
 };

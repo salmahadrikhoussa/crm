@@ -1,4 +1,3 @@
-// app/dashboard/ClientLayout.tsx
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
@@ -7,12 +6,12 @@ import { usePathname, useRouter } from "next/navigation";
 
 const navItems = [
   { label: "Overview", href: "/dashboard" },
-  { label: "Clients",  href: "/dashboard/clients" },
-  { label: "Prospects",href: "/dashboard/prospects" },
+  { label: "Clients", href: "/dashboard/clients" },
+  { label: "Prospects", href: "/dashboard/prospects" },
   { label: "Projects", href: "/dashboard/projects" },
-  { label: "Tasks",    href: "/dashboard/tasks" },
-  { label: "Users",    href: "/dashboard/users" },
-  { label: "Profile",  href: "/dashboard/profile" },  // ← added here
+  { label: "Tasks", href: "/dashboard/tasks" },
+  { label: "Users", href: "/dashboard/users" },
+  { label: "Profile", href: "/dashboard/profile" },
 ];
 
 interface User {
@@ -29,7 +28,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const [profileOpen, setProfileOpen] = useState(false);
   const badgeRef = useRef<HTMLDivElement>(null);
 
-  // Fetch current user
+  // Fetch current user info
   useEffect(() => {
     fetch("/api/auth/me")
       .then(res => res.json())
@@ -48,17 +47,23 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     return () => window.removeEventListener("mousedown", onClick);
   }, []);
 
-  // Derive badge initial
   const rawInitial =
     user?.name?.trim().charAt(0) ||
     user?.email?.trim().charAt(0) ||
     "U";
   const initial = rawInitial.toUpperCase();
 
-  function handleLogout() {
-    fetch("/api/auth/logout", { method: "POST" }).finally(() => {
-      router.push("/login");
-    });
+  async function handleLogout() {
+    try {
+      const res = await fetch("/api/auth/logout", { method: "POST" });
+      if (res.ok) {
+        router.push("/login");
+      } else {
+        console.error("Logout failed");
+      }
+    } catch (err) {
+      console.error("Logout error", err);
+    }
   }
 
   return (

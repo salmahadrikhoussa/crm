@@ -56,5 +56,12 @@ export const UserSchema = z.object({
   email: z.string().email(),
   role: z.enum(["admin", "bizdev", "developer"]),
   avatar: z.string().optional(),
+  password: z.string().min(6), 
 });
 export type UserInput = z.infer<typeof UserSchema>;
+// Add a login-specific schema
+export const LoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+export type LoginInput = z.infer<typeof LoginSchema>;
